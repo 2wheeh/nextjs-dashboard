@@ -1,5 +1,4 @@
-import NextAuth from 'next-auth';
-import { authConfig } from './auth.config';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 import { sql } from '@vercel/postgres';
@@ -16,8 +15,23 @@ async function getUser(email: string): Promise<User | undefined> {
   }
 }
 
-export const { signIn, signOut } = NextAuth({
-  ...authConfig,
+const authConfig = {
+  pages: {
+    signIn: '/login',
+  },
+  callbacks: {
+    authorized({ auth, request: { nextUrl } }) {
+      const isLoggedIn = !!auth?.user;
+      const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
+      if (isOnDashboard) {
+        if (isLoggedIn) return true;
+        return false; // Redirect unauthenticated users to login page
+      } else if (isLoggedIn) {
+        return Response.redirect(new URL('/dashboard', nextUrl));
+      }
+      return true;
+    },
+  },
   providers: [
     Credentials({
       async authorize(credentials) {
@@ -39,4 +53,6 @@ export const { signIn, signOut } = NextAuth({
       },
     }),
   ],
-});
+} satisfies NextAuthConfig;
+
+export const { auth, signIn, signOut } = NextAuth(authConfig);
